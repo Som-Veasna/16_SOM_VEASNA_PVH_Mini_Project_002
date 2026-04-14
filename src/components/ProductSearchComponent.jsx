@@ -6,7 +6,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 
-export default function ProductFilterComponent({ 
+export default function ProductSearchComponent({ 
   products, 
   onFilterChange, 
   categories,
@@ -14,11 +14,7 @@ export default function ProductFilterComponent({
 }) {
   const [priceRange, setPriceRange] = useState([300]);
   const [selectedCategories, setSelectedCategories] = useState([]);
-
-  // Get unique categories from products
   const availableCategories = categories || [...new Set(products?.map(p => p.categoryName || p.category?.name).filter(Boolean))];
-
-  // Get price range from products
   const maxPrice = Math.max(...products?.map(p => p.price || 0), 300);
   const minPrice = 0;
 
@@ -57,8 +53,6 @@ export default function ProductFilterComponent({
       const price = product.price || 0;
       return price >= currentPriceRange.min && price <= currentPriceRange.max;
     });
-
-    // Apply category filter
     if (currentCategories.length > 0) {
       filtered = filtered.filter(product => {
         const productCategory = product.categoryName || product.category?.name;
@@ -66,7 +60,6 @@ export default function ProductFilterComponent({
       });
     }
 
-    // Apply search filter
     if (currentSearch?.trim()) {
       const searchLower = currentSearch.toLowerCase();
       filtered = filtered.filter(product => {
@@ -103,7 +96,6 @@ export default function ProductFilterComponent({
           </button>
         </div>
 
-        {/* Price Range */}
         <div className="mb-6">
           <Label className="mb-3 block text-sm font-medium text-gray-700">
             Price Range
@@ -147,7 +139,7 @@ export default function ProductFilterComponent({
           </div>
         </div>
 
-        {/* Categories */}
+
         <div>
           <Label className="mb-3 block text-sm font-medium text-gray-700">
             Categories

@@ -9,40 +9,34 @@ import { useSession } from "next-auth/react";
 import { updateProductRating } from "../../../../app/service/service";
 import ProductVariationSelector from "../../../../components/shop/ProductVariationSelector";
 
-function ClickableStars({ score, onClick, loading, itemId }) {
-  const [hoverScore, setHoverScore] = useState(0);
-  const { data: userData } = useSession();
-  const loggedIn = !!userData?.user;
+function StarWidget({ rating, onRate, busy }) {
+  const [hovered, setHovered] = useState(0);
+  const { data: session } = useSession();
+  const canRate = !!session?.user;
 
-  const starClick = async (value) => {
-    if (!loggedIn) return;
-    if (onClick && !loading) {
-      await onClick(value);
-    }
+  const handleClick = async (val) => {
+    if (!canRate || busy) return;
+    await onRate(val);
   };
 
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex items-center gap-2">
       <div className="flex items-center gap-0.5">
-        {[1, 2, 3, 4, 5].map((starNum) => {
-          const active = starNum <= (hoverScore || score);
+        {[1, 2, 3, 4, 5].map((s) => {
+          const lit = s <= (hovered || rating);
           return (
             <button
-              key={starNum}
+              key={s}
               type="button"
-              onClick={() => starClick(starNum)}
-              onMouseEnter={() => loggedIn && setHoverScore(starNum)}
-              onMouseLeave={() => setHoverScore(0)}
-              disabled={loading || !loggedIn}
-              className={`transition-all duration-200 hover:rotate-12 ${
-                loggedIn ? "cursor-pointer hover:scale-125 hover:shadow-lg" : "cursor-not-allowed"
-              } ${loading ? "opacity-60" : ""}`}
-              title={loggedIn ? `Give ${starNum} stars` : "Login required"}
+              onClick={() => handleClick(s)}
+              onMouseEnter={() => canRate && setHovered(s)}
+              onMouseLeave={() => setHovered(0)}
+              disabled={busy || !canRate}
+              className={`transition-all duration-150 ${canRate ? "cursor-pointer hover:scale-110" : "cursor-default"} ${busy ? "opacity-40" : ""}`}
+              title={canRate ? `Rate ${s} stars` : "Sign in to rate"}
             >
               <svg
-                className={`h-6 w-6 ${
-                  active ? "fill-gold-400 text-gold-400 drop-shadow-lg" : "fill-zinc-300 text-zinc-300"
-                }`}
+                className={`h-5 w-5 ${lit ? "fill-amber-400 text-amber-400" : "fill-gray-200 text-gray-200"}`}
                 viewBox="0 0 20 20"
               >
                 <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
@@ -51,297 +45,205 @@ function ClickableStars({ score, onClick, loading, itemId }) {
           );
         })}
       </div>
-      {!userData?.user && (
-        <span className="text-xs text-zinc-500 italic">(Login to review)</span>
-      )}
+      {!session?.user && <span className="text-xs text-gray-400">(Sign in to rate)</span>}
     </div>
   );
 }
 
-const groupStyle = {
-  Skincare: "bg-cyan-100 text-cyan-800 ring-cyan-300/50",
-  Makeup: "bg-fuchsia-100 text-fuchsia-800 ring-fuchsia-300/50",
-  Fragrance: "bg-amber-100 text-amber-800 ring-amber-300/50",
-  Haircare: "bg-teal-100 text-teal-800 ring-teal-300/50",
+const categoryStyles = {
+  Skincare: "bg-sky-50 text-sky-700 ring-sky-200",
+  Makeup: "bg-rose-50 text-rose-700 ring-rose-200",
+  Fragrance: "bg-amber-50 text-amber-800 ring-amber-200",
+  Haircare: "bg-emerald-50 text-emerald-700 ring-emerald-200",
 };
 
-function tagStyle(name) {
-  return groupStyle[name] ?? "bg-violet-100 text-violet-800 ring-violet-300/50";
+function catBadge(label) {
+  return categoryStyles[label] ?? "bg-violet-50 text-violet-700 ring-violet-200";
 }
 
-export default function ItemShowcase({ item: originalItem }) {
-  const { addItem } = useCart();
-  const { showAlert } = useToast();
-  const { data: userSession } = useSession();
-  const [count, setCount] = useState(1);
+export default function ProductDetailClient({ product: raw }) {
+  const { addToCart } = useCart();
+  const { addToast } = useToast();
+  const { data: session } = useSession();
+  const [qty, setQty] = useState(1);
   const [chosenColor, setChosenColor] = useState(null);
   const [chosenSize, setChosenSize] = useState(null);
-  const [activeScore, setActiveScore] = useState(0);
-  const [scoreUpdating, setScoreUpdating] = useState(false);
+  const [starVal, setStarVal] = useState(0);
+  const [ratingBusy, setRatingBusy] = useState(false);
 
-  const item = originalItem?.payload ?? originalItem;
+  const item = raw?.payload ?? raw;
 
-  if (!item || !item.productId && !item.id) {
-    return <div className="min-h-screen bg-gradient-to-br from-rose-50 to-orange-50 flex items-center justify-center">
-      <div className="text-center p-20 bg-white rounded-3xl shadow-2xl border-4 border-rose-200">
-        <div className="text-8xl mb-8">❓</div>
-        <h1 className="text-4xl font-black text-rose-800 mb-4">Item Not Found</h1>
-        <p className="text-xl text-rose-600">The product you're looking for doesn't exist</p>
-      </div>
-    </div>;
+  if (!item || (!item.productId && !item.id)) {
+    return <div>Product not found</div>;
   }
 
-  const itemId = item.productId || item.id;
-  const itemTitle = item.name || item.productName;
-  const groupName = item.categoryName || item.category?.name || "Item";
-  const itemPrice = item.price;
-  const itemDetails = item.description || "Details unavailable.";
-  const mainImage = item.imageUrl;
-  const availableColors = item.colors || [];
-  const availableSizes = item.sizes || [];
-  const itemScore = item.star || item.rating || 0;
+  const pid = item.productId || item.id;
+  const pname = item.name || item.productName;
+  const catLabel = item.categoryName || item.category?.name || "Product";
+  const cost = item.price;
+  const about = item.description || "No description available.";
+  const thumb = item.imageUrl;
+  const colorOptions = item.colors || [];
+  const sizeOptions = item.sizes || [];
+  const initStar = item.star || item.rating || 0;
 
   useEffect(() => {
-    if (availableColors.length > 0 && !chosenColor) {
-      setChosenColor(availableColors[0]);
-    }
-    if (availableSizes.length > 0 && !chosenSize) {
-      setChosenSize(availableSizes[0]);
-    }
-    setActiveScore(itemScore);
-  }, [availableColors, availableSizes, itemScore]);
+    if (colorOptions.length > 0 && !chosenColor) setChosenColor(colorOptions[0]);
+    if (sizeOptions.length > 0 && !chosenSize) setChosenSize(sizeOptions[0]);
+    setStarVal(initStar);
+  }, [colorOptions, sizeOptions, initStar]);
 
-  const submitScore = async (newScore) => {
-    if (!userSession?.accessToken) {
-      showAlert({
-        title: "Login Required",
-        description: "Sign in to leave ratings and reviews.",
-        color: "info",
-      });
+  const submitRating = async (val) => {
+    if (!session?.accessToken) {
+      addToast({ title: "Sign in required", description: "Please log in to rate this product.", color: "warning" });
       return;
     }
-
-    setScoreUpdating(true);
+    setRatingBusy(true);
     try {
-      const response = await updateProductRating(itemId, newScore, userSession.accessToken);
-      const newScoreValue = response?.payload?.star ?? response?.data?.star ?? newScore;
-      setActiveScore(newScoreValue);
-      
-      showAlert({
-        title: "Review Saved!",
-        description: `Thanks for rating ${itemTitle} ${newScore} stars!`,
-        color: "success",
-      });
+      const res = await updateProductRating(pid, val, session.accessToken);
+      const updated = res?.payload?.star ?? res?.data?.star ?? val;
+      setStarVal(updated);
+      addToast({ title: "Rating saved!", description: `You gave ${pname} ${val} stars.`, color: "success" });
     } catch (err) {
-      console.error("Score update failed:", err);
-      
-      if (err.message?.includes("auth") || err.message?.includes("token")) {
-        showAlert({
-          title: "Login Expired",
-          description: "Please sign in again to continue rating.",
-          color: "info",
-        });
-      } else {
-        showAlert({
-          title: "Rating Failed",
-          description: err.message || "Please try rating again.",
-          color: "error",
-        });
-      }
+      addToast({ title: "Rating failed", description: err.message || "Please try again.", color: "danger" });
     } finally {
-      setScoreUpdating(false);
+      setRatingBusy(false);
     }
   };
 
-  const addMultiple = () => {
-    const itemData = {
-      productId: itemId,
-      productName: itemTitle,
-      price: itemPrice,
-      imageUrl: mainImage,
-    };
-    
-    for (let i = 0; i < count; i++) {
-      addItem(itemData, chosenColor, chosenSize);
+  const addItems = () => {
+    const payload = { productId: pid, productName: pname, price: cost, imageUrl: thumb };
+    for (let i = 0; i < qty; i++) {
+      addToCart(payload, chosenColor, chosenSize);
     }
-    
-    const colorInfo = chosenColor ? ` (${chosenColor})` : '';
-    const sizeInfo = chosenSize ? ` (${chosenSize})` : '';
-    
-    showAlert({
-      title: "Basket Updated!",
-      description: `${count} × ${itemTitle}${colorInfo}${sizeInfo} added successfully!`,
-      color: "success"
-    });
+    const colorNote = chosenColor ? ` (${chosenColor})` : "";
+    const sizeNote = chosenSize ? ` / ${chosenSize}` : "";
+    addToast({ title: "Added to cart!", description: `${qty} × ${pname}${colorNote}${sizeNote}`, color: "success" });
   };
 
-  const imageSet = mainImage ? [
-    mainImage,
-    "https://images.unsplash.com/photo-1574169208507-84376144848b?w=900&h=1200&fit=crop",
-    "https://images.unsplash.com/photo-1593774636888-72c2f4c7b4d3?w=900&h=1200&fit=crop",
-    "https://images.unsplash.com/photo-1602295581005-6c8932e1be69?w=900&h=1200&fit=crop",
-  ] : [];
+  const shots = thumb
+    ? [
+        thumb,
+        "https://images.unsplash.com/photo-1556228578-8c89e6adf883?w=800&h=1000&fit=crop",
+        "https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=800&h=1000&fit=crop",
+        "https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?w=800&h=1000&fit=crop",
+      ]
+    : [];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-100">
-      
-      <div className="mx-auto w-full max-w-7xl px-8 pt-12 pb-8">
-        <nav className="flex items-center gap-3 text-base text-teal-700 font-semibold mb-12">
-          <Link href="/" className="hover:text-teal-900 transition-all duration-200 hover:underline">🏠 Home</Link>
-          <span className="text-teal-400">/</span>
-          <Link href="/catalog" className="hover:text-teal-900 transition-all duration-200 hover:underline">Catalog</Link>
-          <span className="text-teal-400">/</span>
-          <span className="font-black text-teal-900 truncate max-w-xs">{itemTitle}</span>
+    <div className="min-h-screen bg-gray-50">
+      <div className="mx-auto w-full max-w-7xl px-4 pt-8 pb-4">
+        <nav className="flex items-center gap-2 text-sm text-gray-400">
+          <Link href="/" className="hover:text-gray-900 transition-colors">Home</Link>
+          <span>/</span>
+          <Link href="/products" className="hover:text-gray-900 transition-colors">Products</Link>
+          <span>/</span>
+          <span className="line-clamp-1 text-gray-900 font-semibold">{pname}</span>
         </nav>
       </div>
 
-      <div className="mx-auto w-full max-w-7xl px-8 pb-24">
-        <div className="grid gap-16 lg:grid-cols-2 lg:gap-24">
-
-          <div className="flex flex-col gap-8">
-            
-            <div className="relative w-full h-[500px] overflow-hidden rounded-3xl border-4 border-teal-200/50 bg-white shadow-2xl hover:shadow-3xl transition-all duration-300 hover:-translate-y-2">
-              {mainImage ? (
-                <Image
-                  src={mainImage}
-                  alt={itemTitle}
-                  fill
-                  sizes="(max-width: 1024px) 100vw, 50vw"
-                  className="object-cover hover:scale-105 transition-transform duration-500"
-                  priority
-                />
+      <div className="mx-auto w-full max-w-7xl px-4 pb-20">
+        <div className="grid gap-10 lg:grid-cols-2 lg:gap-16">
+          <div className="flex flex-col gap-4">
+            <div className="relative aspect-square w-full overflow-hidden rounded-3xl border border-gray-100 bg-white shadow-sm">
+              {thumb ? (
+                <Image src={thumb} alt={pname} fill sizes="(max-width: 1024px) 100vw, 50vw" className="object-cover" priority />
               ) : (
-                <div className="flex h-full items-center justify-center bg-gradient-to-br from-teal-100 to-cyan-200 text-teal-500 text-7xl font-black drop-shadow-lg">
-                  ◆
-                </div>
+                <div className="flex size-full items-center justify-center bg-gradient-to-br from-gray-100 to-violet-50/30 text-gray-300 text-6xl">◇</div>
               )}
             </div>
-
-            {imageSet.length > 1 && (
-              <div className="grid grid-cols-4 gap-4">
-                {imageSet.slice(0, 4).map((imgSrc, idx) => (
+            {shots.length > 1 && (
+              <div className="grid grid-cols-4 gap-3">
+                {shots.slice(0, 4).map((url, i) => (
                   <div
-                    key={idx}
-                    className={`relative h-32 overflow-hidden rounded-2xl border-3 bg-white shadow-xl cursor-pointer hover:scale-105 transition-all duration-200 ${
-                      idx === 0 ? "border-teal-500 ring-4 ring-teal-200/50 shadow-teal-200/50" : "border-teal-100 hover:border-teal-300"
-                    }`}
+                    key={i}
+                    className={`relative aspect-square overflow-hidden rounded-xl border bg-white shadow-sm ${i === 0 ? "border-violet-600 ring-1 ring-violet-600" : "border-gray-200"}`}
                   >
-                    <Image
-                      src={imgSrc}
-                      alt={`${itemTitle} - view ${idx + 1}`}
-                      fill
-                      sizes="200px"
-                      className="object-cover hover:scale-110 transition-transform duration-300"
-                    />
+                    <Image src={url} alt={`${pname} view ${i + 1}`} fill sizes="12vw" className="object-cover" />
                   </div>
                 ))}
               </div>
             )}
           </div>
 
-          <div className="flex flex-col justify-center gap-12">
-            
-            <div className={`inline-flex items-center px-5 py-2 rounded-2xl text-sm font-black ring-2 shadow-lg ${tagStyle(groupName)}`}>
-              {groupName.toUpperCase()}
+          <div className="flex flex-col justify-center gap-6">
+            <span className={`inline-flex w-fit items-center rounded-full px-3 py-1 text-xs font-bold ring-1 ${catBadge(catLabel)}`}>
+              {catLabel}
+            </span>
+
+            <div>
+              <h1 className="text-4xl font-bold leading-tight text-gray-900">{pname}</h1>
+              <p className="mt-1 text-xs text-gray-300 font-mono">#{pid?.toString().slice(0, 8)}</p>
             </div>
 
-            <div className="space-y-4">
-              <h1 className="text-5xl font-black leading-none text-slate-900 drop-shadow-lg tracking-tight">
-                {itemTitle}
-              </h1>
-              <p className="text-lg font-mono text-teal-700 bg-teal-100/50 px-4 py-2 rounded-xl font-bold">
-                ID: #{itemId?.toString().slice(0, 8)?.toUpperCase()}
-              </p>
+            <StarWidget rating={starVal} onRate={submitRating} busy={ratingBusy} />
+
+            <p className="text-4xl font-bold tabular-nums text-gray-900">
+              ${cost}
+              <span className="ml-2 text-sm font-normal text-gray-400">USD</span>
+            </p>
+
+            <hr className="border-gray-100" />
+
+            <div>
+              <h2 className="text-xs font-bold uppercase tracking-widest text-gray-400">About</h2>
+              <p className="mt-3 leading-relaxed text-gray-600">{about}</p>
             </div>
 
-            <ClickableStars
-              score={activeScore}
-              onClick={submitScore}
-              loading={scoreUpdating}
-              itemId={itemId}
-            />
-
-            <div className="text-6xl font-black text-teal-700 drop-shadow-2xl tracking-tight">
-              ${itemPrice}
-              <span className="ml-4 text-2xl font-normal text-teal-600">USD</span>
-            </div>
-
-            <hr className="border-teal-200 border-2 -mx-8 lg:-mx-12" />
-
-            <div className="space-y-6">
-              <h2 className="text-lg font-bold uppercase tracking-widest text-teal-800 bg-teal-100 px-6 py-3 rounded-2xl inline-block shadow-md">
-                Product Overview
-              </h2>
-              <p className="text-xl leading-relaxed text-slate-700 font-medium max-w-2xl">{itemDetails}</p>
-            </div>
-
-            <ul className="grid grid-cols-1 gap-4 text-lg text-teal-800">
-              {[
-                "🚚 Free delivery over $99",
-                "↩️ 45-day easy returns",
-                "✅ 100% verified authentic",
-                "⚡ Same/next day dispatch",
-              ].map((benefit, i) => (
-                <li key={i} className="flex items-center gap-4 p-4 bg-white/60 rounded-2xl border-l-4 border-teal-400 shadow-sm hover:shadow-md transition-all">
-                  <span className="text-2xl font-black text-teal-600">→</span>
-                  <span>{benefit}</span>
+            <ul className="space-y-2 text-sm text-gray-500">
+              {["Free shipping on orders over $75", "30-day hassle-free returns", "Authenticity guaranteed"].map((pt) => (
+                <li key={pt} className="flex items-center gap-2">
+                  <span className="text-violet-500 font-bold">✓</span>
+                  {pt}
                 </li>
               ))}
             </ul>
 
             <ProductVariationSelector
-              colors={availableColors}
-              sizes={availableSizes}
+              colors={colorOptions}
+              sizes={sizeOptions}
               selectedColor={chosenColor}
               selectedSize={chosenSize}
               onColorChange={setChosenColor}
               onSizeChange={setChosenSize}
             />
 
-            <div className="space-y-6">
-              <div className="flex items-center gap-6">
-                <span className="text-xl font-bold text-slate-800">Amount:</span>
-                <div className="flex items-center gap-4 p-4 bg-white/70 rounded-2xl shadow-lg border-2 border-teal-200">
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center gap-4">
+                <span className="text-sm font-semibold text-gray-700">Qty:</span>
+                <div className="flex items-center gap-2">
                   <button
-                    onClick={() => setCount(Math.max(1, count - 1))}
-                    className="w-14 h-14 rounded-2xl border-2 border-teal-300 bg-white text-teal-700 font-black text-2xl hover:bg-teal-50 hover:border-teal-400 hover:shadow-md transition-all duration-200 shadow-lg"
-                    disabled={count <= 1}
+                    onClick={() => setQty(Math.max(1, qty - 1))}
+                    disabled={qty <= 1}
+                    className="h-8 w-8 rounded-full border border-gray-200 bg-white text-gray-500 hover:border-gray-300 hover:bg-gray-50 transition-colors"
                   >
-                    −
+                    -
                   </button>
-                  <span className="w-20 text-center text-3xl font-black text-teal-800 bg-teal-100 px-6 py-3 rounded-2xl shadow-inner">
-                    {count}
-                  </span>
+                  <span className="w-10 text-center font-bold">{qty}</span>
                   <button
-                    onClick={() => setCount(count + 1)}
-                    className="w-14 h-14 rounded-2xl border-2 border-teal-300 bg-white text-teal-700 font-black text-2xl hover:bg-teal-50 hover:border-teal-400 hover:shadow-md transition-all duration-200 shadow-lg"
+                    onClick={() => setQty(qty + 1)}
+                    className="h-8 w-8 rounded-full border border-gray-200 bg-white text-gray-500 hover:border-gray-300 hover:bg-gray-50 transition-colors"
                   >
                     +
                   </button>
                 </div>
               </div>
 
-              <div className="flex gap-6">
+              <div className="flex gap-3">
                 <button
-                  onClick={addMultiple}
-                  className="flex-1 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 text-white font-black text-xl py-6 px-12 rounded-3xl shadow-2xl hover:shadow-3xl hover:-translate-y-1 transition-all duration-300 active:scale-95 tracking-wide uppercase letter-spacing-1"
+                  onClick={addItems}
+                  className="flex-1 rounded-2xl bg-violet-600 py-4 text-sm font-bold text-white transition hover:bg-violet-500 active:scale-[.98]"
                 >
-                  🛒 Add to Basket
+                  Add to Cart
                 </button>
-                <button className="w-20 h-20 rounded-3xl bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-600 hover:to-pink-600 text-white shadow-2xl hover:shadow-3xl hover:rotate-180 transition-all duration-500 flex items-center justify-center text-3xl font-black hover:scale-110">
-                  💖
+                <button className="rounded-2xl border border-gray-200 bg-white px-6 py-4 text-sm font-bold text-gray-700 transition hover:border-gray-300 active:scale-[.98]">
+                  ♡ Save
                 </button>
               </div>
             </div>
 
-            <Link
-              href="/catalog"
-              className="inline-flex items-center gap-3 text-xl font-bold text-teal-700 hover:text-teal-900 transition-all duration-200 hover:underline decoration-2 underline-offset-4 group"
-            >
-              <svg className="w-6 h-6 group-hover:-translate-x-2 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-              Return to Catalog
+            <Link href="/products" className="mt-2 inline-flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-900 transition-colors">
+              ← Back to products
             </Link>
           </div>
         </div>

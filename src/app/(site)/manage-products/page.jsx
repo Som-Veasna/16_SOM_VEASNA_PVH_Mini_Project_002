@@ -5,16 +5,16 @@ import { auth } from "../../../auth";
 export default async function ManageProductsPage() {
   const session = await auth();
 
-  const productsData = await getProducts(session?.accessToken);
-  const categoriesData = await getCategories(session?.accessToken);
-  
-  const products = productsData?.payload || [];
-  const categories = categoriesData?.payload || [];
+  const prodData = await getProducts(session?.accessToken);
+  const catData = await getCategories(session?.accessToken);
+
+  const productList = prodData?.payload || [];
+  const categoryList = catData?.payload || [];
 
   return (
-    <ManageProductsClient 
-      initialProducts={products} 
-      categories={categories}
+    <ManageProductsClient
+      initialProducts={productList}
+      categories={categoryList}
       accessToken={session?.accessToken}
     />
   );

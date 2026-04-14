@@ -1,57 +1,48 @@
 import Link from "next/link";
 import { auth } from "../../auth";
 import { loadProducts } from "../service/service";
-
-import { categories, products as mockProducts } from "../../data/mockData";
+import { categories, products as staticProducts } from "../../data/mockData";
 import LandingHeroSectionComponent from "../../components/landing/LandingHeroSectionComponent";
 import LandingBestSellerSectionComponent from "../../components/landing/LandingBestSellerSectionComponent";
 import LandingEssentialComponent from "../../components/landing/LandingEssentialComponent";
 
 export default async function Home() {
   const session = await auth();
-  const isAuthenticated = !!session?.user;
+  const signedIn = !!session?.user;
 
-  
-  let apiProducts = [];
-  if (isAuthenticated) {
+  let liveProducts = [];
+  if (signedIn) {
     try {
-      const data = await getProducts(session?.accessToken);
-      apiProducts = data?.payload || [];
-    } catch (error) {
-      console.error("Failed to fetch products:", error);
+      const fetched = await getProducts(session?.accessToken);
+      liveProducts = fetched?.payload || [];
+    } catch (err) {
+      console.error("Product fetch failed:", err);
     }
   }
 
-    
-  const products = isAuthenticated && apiProducts.length > 0 ? apiProducts : mockProducts;
-  const bestSellers = products.slice(0, 4);
-  const heroStrip = products.slice(0, 3);
+  const allProducts = signedIn && liveProducts.length > 0 ? liveProducts : staticProducts;
+  const topFour = allProducts.slice(0, 4);
+  const heroThree = allProducts.slice(0, 3);
 
   return (
-    <div className="bg-[#fafafa]">
-      <LandingHeroSectionComponent miniProducts={isAuthenticated ? heroStrip : []} />
-      
-      {isAuthenticated ? (
+    <div className="bg-white">
+      <LandingHeroSectionComponent miniProducts={signedIn ? heroThree : []} />
+
+      {signedIn ? (
         <>
-          <LandingBestSellerSectionComponent items={bestSellers} />
-          <LandingEssentialComponent products={products} />
+          <LandingBestSellerSectionComponent items={topFour} />
+          <LandingEssentialComponent products={allProducts} />
         </>
       ) : (
-        <section className="mx-auto w-full max-w-7xl py-16 lg:py-20 text-center">
-          <div className="rounded-2xl border border-gray-200 bg-white p-12">
-            <h2 className="text-2xl font-semibold text-gray-900">Sign in to explore products</h2>
-            <p className="mt-2 text-gray-600">Log in or create an account to view our full catalog.</p>
+        <section className="mx-auto w-full max-w-7xl py-16">
+          <div className="rounded-3xl border border-gray-100 bg-gray-50 p-12 text-center">
+            <h2 className="text-2xl font-bold text-gray-900">Sign in to see our full catalog</h2>
+            <p className="mt-2 text-gray-400">Create an account or log in to browse all products.</p>
             <div className="mt-6 flex items-center justify-center gap-3">
-              <Link
-                href="/login"
-                className="rounded-full px-6 py-3 text-sm font-semibold text-gray-900 ring-1 ring-gray-300 hover:bg-gray-50"
-              >
+              <Link href="/login" className="rounded-full px-6 py-3 text-sm font-semibold text-gray-900 ring-1 ring-gray-300 hover:bg-gray-100">
                 Log in
               </Link>
-              <Link
-                href="/register"
-                className="rounded-full bg-lime-400 px-6 py-3 text-sm font-semibold text-gray-900 hover:bg-lime-300"
-              >
+              <Link href="/register" className="rounded-full bg-violet-600 px-6 py-3 text-sm font-semibold text-white hover:bg-violet-500">
                 Register
               </Link>
             </div>
@@ -59,78 +50,68 @@ export default async function Home() {
         </section>
       )}
 
-      <section className="mx-auto w-full max-w-7xl py-16 lg:py-20">
+      <section className="mx-auto w-full max-w-7xl py-16">
         <div className="grid gap-4 md:grid-cols-3">
           <div className="rounded-2xl border border-gray-100 bg-white p-8 shadow-sm">
-            <p className="text-4xl font-semibold tabular-nums text-gray-900 lg:text-5xl">1,200+</p>
-            <p className="mt-2 font-medium text-gray-600">Skincare formulas in our catalog demo</p>
+            <p className="text-5xl font-bold tabular-nums text-gray-900">1,200+</p>
+            <p className="mt-2 font-medium text-gray-500">Beauty formulas in our demo catalog</p>
           </div>
-          <div className="relative overflow-hidden rounded-2xl bg-lime-400 p-8 text-gray-900 shadow-sm">
-            <p className="text-sm font-semibold uppercase tracking-wider opacity-80">Spotlight</p>
-            <p className="mt-4 text-2xl font-semibold leading-snug">No. 1 featured routine starter</p>
-            <p className="mt-2 text-sm opacity-90">Student-built UI — swap for your real campaign.</p>
+          <div className="relative overflow-hidden rounded-2xl bg-violet-600 p-8 text-white shadow-sm">
+            <p className="text-sm font-bold uppercase tracking-wider opacity-80">Spotlight</p>
+            <p className="mt-4 text-2xl font-bold leading-snug">No. 1 starter routine pick</p>
+            <p className="mt-2 text-sm opacity-80">Student UI — swap for your real campaign.</p>
           </div>
-          <div className="rounded-2xl border border-gray-100 bg-amber-100/90 p-8 shadow-sm">
-            <p className="text-4xl font-semibold tabular-nums text-gray-900 lg:text-5xl">20+</p>
-            <p className="mt-2 font-medium text-gray-800">Countries represented in mock orders</p>
+          <div className="rounded-2xl border border-gray-100 bg-violet-50 p-8 shadow-sm">
+            <p className="text-5xl font-bold tabular-nums text-gray-900">20+</p>
+            <p className="mt-2 font-medium text-gray-700">Countries in mock order data</p>
           </div>
         </div>
       </section>
 
-      <section
-        id="about"
-        className="scroll-mt-28 border-y border-gray-100 bg-white py-16 lg:scroll-mt-32 lg:py-20"
-      >
+      <section id="about" className="border-y border-gray-100 bg-gray-50 py-16">
         <div className="mx-auto w-full max-w-7xl">
-          <h2 className="text-center text-3xl font-semibold text-gray-900 sm:text-4xl">
-            What makes us different
-          </h2>
+          <h2 className="text-center text-3xl font-bold text-gray-900">Why BloomShop?</h2>
           <div className="mt-12 grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
             {[
-              { t: "100% transparent", d: "Mock data only — no hidden APIs in this classroom build." },
-              { t: "Cruelty-free UX", d: "Clear buttons, readable type, and calm spacing by default." },
-              { t: "Clinically tidy code", d: "Components you can trace from landing tile to Zustand store." },
-              { t: "Ship-ready patterns", d: "Filters, cart, and routes mirror real storefront structure." },
-            ].map((item) => (
-              <div key={item.t} className="rounded-2xl bg-gray-50/80 p-6">
-                <p className="text-lg font-semibold text-gray-900">{item.t}</p>
-                <p className="mt-2 text-sm leading-relaxed text-gray-600">{item.d}</p>
+              { t: "Fully transparent", d: "Mock data only — no hidden APIs in this build." },
+              { t: "Clean UX", d: "Clear buttons, readable type, and calm spacing throughout." },
+              { t: "Traceable code", d: "Components you can follow from page to context." },
+              { t: "Ship-ready", d: "Filters, cart, and routes mirror real storefront patterns." },
+            ].map((card) => (
+              <div key={card.t} className="rounded-2xl bg-white p-6 shadow-sm">
+                <p className="text-base font-bold text-gray-900">{card.t}</p>
+                <p className="mt-2 text-sm leading-relaxed text-gray-500">{card.d}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      
-
-      <section className="bg-teal-950 py-16 lg:py-20">
-        <div className="mx-auto w-full max-w-7xl px-0 text-center">
-          <h2 className="text-3xl font-semibold leading-tight text-lime-300 sm:text-4xl lg:text-5xl">
-            Start getting glowing with our 100% natural skincare story
+      <section className="bg-violet-700 py-16">
+        <div className="mx-auto w-full max-w-7xl text-center">
+          <h2 className="text-4xl font-bold leading-tight text-white">
+            Start your glow-up with our natural skincare collection
           </h2>
-          <p className="mx-auto mt-6 max-w-2xl text-teal-100/90">
-            This banner uses deep teal + lime type like the reference — connect it to your real promo
-            or newsletter.
+          <p className="mx-auto mt-6 max-w-2xl text-violet-200">
+            Connect this banner to your real promo or newsletter when you are ready to ship.
           </p>
           <Link
             href="/products"
-            className="mt-10 inline-flex rounded-full bg-lime-400 px-10 py-4 text-sm font-semibold text-gray-900 transition hover:bg-lime-300"
+            className="mt-10 inline-flex rounded-full bg-white px-10 py-4 text-sm font-bold text-violet-700 transition hover:bg-violet-50"
           >
             Shop now
           </Link>
         </div>
       </section>
 
-      
-
-      <section className="mx-auto w-full max-w-7xl py-14 text-center text-sm text-gray-500">
+      <section className="mx-auto w-full max-w-7xl py-12 text-center text-sm text-gray-400">
         <p>
           Explore{" "}
-          <Link href="/categories" className="font-medium text-gray-900 underline-offset-2 hover:underline">
+          <Link href="/categories" className="font-semibold text-gray-900 underline-offset-2 hover:underline">
             {categories.length} categories
           </Link>{" "}
           and{" "}
-          <Link href="/order" className="font-medium text-gray-900 underline-offset-2 hover:underline">
+          <Link href="/order" className="font-semibold text-gray-900 underline-offset-2 hover:underline">
             sample orders
           </Link>{" "}
           from the same project.

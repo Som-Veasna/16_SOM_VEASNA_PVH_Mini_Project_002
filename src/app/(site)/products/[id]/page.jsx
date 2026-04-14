@@ -3,10 +3,8 @@ import { auth } from "../../../../auth";
 import { getProductById } from "../../../service/service";
 import { notFound } from "next/navigation";
 
-export async function generateMetadata({ params }) {
-  return {
-    title: `Product Detail | PurelyStore`,
-  };
+export async function generateMetadata() {
+  return { title: "Product | BloomShop" };
 }
 
 export default async function ProductDetailPage({ params }) {
@@ -14,11 +12,11 @@ export default async function ProductDetailPage({ params }) {
   const { id } = await params;
 
   const data = await getProductById(id, session?.accessToken);
-  const product = data?.payload ?? data;
+  const item = data?.payload ?? data;
 
-  if (!product || !product.productId && !product.id) {
+  if (!item || (!item.productId && !item.id)) {
     notFound();
   }
 
-  return <ProductDetailClient product={product} />;
+  return <ProductDetailClient product={item} />;
 }

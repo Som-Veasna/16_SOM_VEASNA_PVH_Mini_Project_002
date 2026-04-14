@@ -4,7 +4,7 @@ import { useState } from "react";
 import { updateProductRating } from "../app/service/productService";
 import { useSession } from "next-auth/react";
 
-export default function InteractiveStarRating({ productId, initialRating = 0, size = "sm", showValue = true, accessToken }) {
+export default function  RatingWidget({ productId, initialRating = 0, size = "sm", showValue = true, accessToken }) {
   const { data: session } = useSession();
   const [rating, setRating] = useState(initialRating);
   const [hovered, setHovered] = useState(0);

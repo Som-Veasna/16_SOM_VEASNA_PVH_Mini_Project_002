@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-export default function ProductVariationSelector({ colors = [], sizes = [], selectedColor, selectedSize, onColorChange, onSizeChange }) {
+export default function ItemOptionsPicker({ colors = [], sizes = [], selectedColor, selectedSize, onColorChange, onSizeChange }) {
   const [activeColor, setActiveColor] = useState(selectedColor || (colors[0] || null));
   const [activeSize, setActiveSize] = useState(selectedSize || (sizes[0] || null));
 
